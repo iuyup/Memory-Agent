@@ -66,7 +66,7 @@ async def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
                 field_name TEXT NOT NULL,
-                old_value TEXT NOT NULL,
+                old_value TEXT,
                 new_value TEXT NOT NULL,
                 question TEXT NOT NULL,
                 status TEXT DEFAULT 'pending',

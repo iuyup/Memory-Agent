@@ -25,8 +25,8 @@ class ProfileService:
     async def _db(self) -> AsyncIterator:
         """获取数据库连接。优先用注入的工厂，否则创建新连接。"""
         if self._db_factory is not None:
-            async with self._db_factory() as db:
-                yield db
+            async with self._db_factory as conn:
+                yield conn
         else:
             async with get_db() as db:
                 yield db
