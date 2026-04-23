@@ -68,9 +68,10 @@ class MemoryWriter:
 
 
 def create_memory_writer():
+    from app.database import get_db
     from app.services.llm import llm_service
     from app.services.profile_service import ProfileService
-    return MemoryWriter(llm_service, ProfileService())
+    return MemoryWriter(llm_service, ProfileService(get_db))
 
 
 memory_writer = create_memory_writer()
