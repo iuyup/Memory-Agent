@@ -1,14 +1,31 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.database import get_db, init_db
 from app.routers import auth, chat, profile, confirmation
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from app.database import init_db
+    from app.services.episodic_service import EpisodicService
+    from app.services.llm import LLMService
+    from app.services.memory_writer import MemoryWriter
+    from app.services.profile_service import ProfileService
+
     await init_db()
+
+    llm_service = LLMService()
+    profile_service = ProfileService(get_db)
+    episodic_service = EpisodicService(get_db)
+    memory_writer = MemoryWriter(llm_service, profile_service, episodic_service)
+
+    app.state.llm_service = llm_service
+    app.state.profile_service = profile_service
+    app.state.episodic_service = episodic_service
+    app.state.memory_writer = memory_writer
+
     yield
 
 

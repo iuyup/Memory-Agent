@@ -1,16 +1,22 @@
 import logging
 
 from app.prompts.extraction import EXTRACTION_SYSTEM_PROMPT, build_extraction_prompt
+from app.services.episodic_service import EpisodicService
 from app.services.profile_service import ProfileService
-from app.services.episodic_service import update_turn_metadata
 
 logger = logging.getLogger(__name__)
 
 
 class MemoryWriter:
-    def __init__(self, llm_service, profile_service: ProfileService):
+    def __init__(
+        self,
+        llm_service,
+        profile_service: ProfileService,
+        episodic_service: EpisodicService,
+    ):
         self.llm_service = llm_service
         self.profile_service = profile_service
+        self.episodic_service = episodic_service
 
     async def process_turn(
         self,
@@ -54,7 +60,9 @@ class MemoryWriter:
 
         # 2c. Update turn metadata
         try:
-            await update_turn_metadata(turn_id, summary, tags, has_open_question)
+            await self.episodic_service.update_turn_metadata(
+                turn_id, summary, tags, has_open_question
+            )
         except Exception as e:
             logger.error(f"update_turn_metadata failed: {e}")
 
@@ -71,7 +79,12 @@ def create_memory_writer():
     from app.database import get_db
     from app.services.llm import llm_service
     from app.services.profile_service import ProfileService
-    return MemoryWriter(llm_service, ProfileService(get_db))
+    from app.services.episodic_service import EpisodicService
+    return MemoryWriter(
+        llm_service,
+        ProfileService(get_db),
+        EpisodicService(get_db),
+    )
 
 
 memory_writer = create_memory_writer()

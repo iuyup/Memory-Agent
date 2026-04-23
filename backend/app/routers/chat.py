@@ -2,14 +2,13 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.auth_deps import get_current_user
 from app.database import get_db
 from app.models.schemas import CurrentUser
 from app.services.llm import llm_service
-from app.services.memory_writer import memory_writer
 
 router = APIRouter()
 
@@ -37,6 +36,7 @@ class TurnResponse(BaseModel):
 
 @router.post("/send", response_model=ChatSendResponse)
 async def chat_send(
+    request: Request,
     body: ChatSendRequest,
     background_tasks: BackgroundTasks,
     current_user: CurrentUser = Depends(get_current_user),
@@ -101,7 +101,7 @@ async def chat_send(
 
     # Enqueue async memory writing (does not block response)
     background_tasks.add_task(
-        memory_writer.process_turn,
+        request.app.state.memory_writer.process_turn,
         user_id,
         turn_id,
         body.message,
