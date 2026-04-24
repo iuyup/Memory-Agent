@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.auth_deps import get_current_user
 from app.database import get_db
 from app.models.schemas import CurrentUser
-from app.services.llm import llm_service
+from app.services.llm import get_llm_service
 
 router = APIRouter()
 
@@ -83,7 +83,7 @@ async def chat_send(
     messages.append({"role": "user", "content": body.message})
 
     # Call LLM
-    response_text = await llm_service.generate_chat(SYSTEM_PROMPT, messages)
+    response_text = await get_llm_service().generate_chat(SYSTEM_PROMPT, messages)
 
     # Store turn
     created_at = datetime.utcnow().isoformat()

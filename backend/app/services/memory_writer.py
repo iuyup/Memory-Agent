@@ -73,18 +73,3 @@ class MemoryWriter:
             system_prompt=EXTRACTION_SYSTEM_PROMPT,
             user_content=prompt,
         )
-
-
-def create_memory_writer():
-    from app.database import get_db
-    from app.services.llm import llm_service
-    from app.services.profile_service import ProfileService
-    from app.services.episodic_service import EpisodicService
-    return MemoryWriter(
-        llm_service,
-        ProfileService(get_db),
-        EpisodicService(get_db),
-    )
-
-
-memory_writer = create_memory_writer()

@@ -25,7 +25,7 @@ class ProfileService:
     async def _db(self) -> AsyncIterator:
         """获取数据库连接。优先用注入的工厂，否则创建新连接。"""
         if self._db_factory is not None:
-            async with self._db_factory as conn:
+            async with self._db_factory() as conn:
                 yield conn
         else:
             async with get_db() as db:
@@ -163,6 +163,14 @@ class ProfileService:
                 """,
                 (user_id,),
             )
+            # 同名字段只保留最新一条（防止 race condition 产生多条 confirmed）
+            seen: set = set()
+            filtered = []
+            for row in rows:
+                if row["field_name"] not in seen:
+                    seen.add(row["field_name"])
+                    filtered.append(row)
+            rows = filtered
             facts = [
                 {
                     "field": row["field_name"],

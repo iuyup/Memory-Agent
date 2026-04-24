@@ -1,9 +1,26 @@
 import json
+import re
 from abc import ABC, abstractmethod
 
 import anthropic
 import openai
 from app.config import settings
+
+
+def _safe_parse_json(raw: str) -> dict:
+    """Parse JSON with resilience against common LLM output issues."""
+    raw = raw.strip()
+    # strip code fence
+    raw = re.sub(r'^```(?:json)?\s*', '', raw)
+    raw = re.sub(r'\s*```$', '', raw)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        # 尝试找到第一个 { 到最后一个 } 的子串
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        raise
 
 
 class LLMProvider(ABC):
@@ -50,15 +67,7 @@ class DeepSeekProvider(LLMProvider):
             max_tokens=max_tokens,
         )
         raw = response.choices[0].message.content or ""
-        # strip markdown code fence
-        raw = raw.strip()
-        if raw.startswith("```json"):
-            raw = raw[7:]
-        elif raw.startswith("```"):
-            raw = raw[3:]
-        if raw.endswith("```"):
-            raw = raw[:-3]
-        return json.loads(raw.strip())
+        return _safe_parse_json(raw)
 
 
 class AnthropicProvider(LLMProvider):
@@ -89,14 +98,7 @@ class AnthropicProvider(LLMProvider):
             messages=[{"role": "user", "content": user_content}],
         )
         raw = response.content[0].text if response.content else ""
-        raw = raw.strip()
-        if raw.startswith("```json"):
-            raw = raw[7:]
-        elif raw.startswith("```"):
-            raw = raw[3:]
-        if raw.endswith("```"):
-            raw = raw[:-3]
-        return json.loads(raw.strip())
+        return _safe_parse_json(raw)
 
 
 _PROVIDER_MAP = {
@@ -130,4 +132,11 @@ class LLMService:
         )
 
 
-llm_service = LLMService()
+_llm_service = None
+
+
+def get_llm_service() -> "LLMService":
+    global _llm_service
+    if _llm_service is None:
+        _llm_service = LLMService()
+    return _llm_service
