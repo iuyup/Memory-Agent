@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import get_db, init_db
-from app.routers import auth, chat, profile, confirmation
+from app.routers import auth, chat, profile, confirmation, debug
 
 
 @asynccontextmanager
@@ -50,3 +50,4 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(profile.router, prefix="/api/profile", tags=["profile"])
 app.include_router(confirmation.router, prefix="/api/confirmation", tags=["confirmation"])
+app.include_router(debug.router, prefix="/debug", tags=["debug"])
