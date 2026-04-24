@@ -66,6 +66,12 @@ class MemoryWriter:
         except Exception as e:
             logger.error(f"update_turn_metadata failed: {e}")
 
+        # 2d. 检查是否需要压缩
+        try:
+            await self.episodic_service.check_and_compress(user_id, self.llm_service)
+        except Exception as e:
+            logger.error(f"compress check failed: {e}")
+
     async def _extract(self, user_message: str, assistant_message: str) -> dict:
         """Call LLM to extract information from the turn."""
         prompt = build_extraction_prompt(user_message, assistant_message)
