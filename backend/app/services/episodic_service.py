@@ -306,3 +306,25 @@ class EpisodicService:
             result.append({"role": "user", "content": row["user_message"]})
             result.append({"role": "assistant", "content": row["assistant_message"]})
         return result
+
+    async def get_recent_turns_raw(self, user_id: str, limit: int = 10) -> list[dict]:
+        """
+        获取最近 N 轮原始对话记录，返回 dict 列表。
+        返回 [{"user_message": str, "assistant_message": str}, ...]
+        按时间倒序。
+        """
+        async with self._db() as db:
+            rows = await db.execute_fetchall(
+                """
+                SELECT user_message, assistant_message
+                FROM conversation_turns
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            )
+        return [
+            {"user_message": row["user_message"], "assistant_message": row["assistant_message"]}
+            for row in rows
+        ]

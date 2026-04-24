@@ -14,11 +14,13 @@ class MemoryWriter:
         profile_service: ProfileService,
         episodic_service: EpisodicService,
         vector_service=None,
+        procedural_service=None,
     ):
         self.llm_service = llm_service
         self.profile_service = profile_service
         self.episodic_service = episodic_service
         self.vector_service = vector_service
+        self.procedural_service = procedural_service
 
     async def process_turn(
         self,
@@ -81,6 +83,16 @@ class MemoryWriter:
             await self.episodic_service.check_and_compress(user_id, self.llm_service)
         except Exception as e:
             logger.error(f"compress check failed: {e}")
+
+        # 2f. 每 5 轮触发行为规则提取
+        if self.procedural_service:
+            try:
+                turn_count = await self.episodic_service.get_turn_count(user_id)
+                if turn_count > 0 and turn_count % 5 == 0:
+                    recent = await self.episodic_service.get_recent_turns_raw(user_id, limit=10)
+                    await self.procedural_service.extract_rules(user_id, self.llm_service, recent)
+            except Exception as e:
+                logger.error(f"procedural extraction failed: {e}")
 
     async def _extract(self, user_message: str, assistant_message: str) -> dict:
         """Call LLM to extract information from the turn."""

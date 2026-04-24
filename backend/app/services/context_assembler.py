@@ -25,10 +25,11 @@ class ContextAssembler:
         "recent_turns": 3000,
     }
 
-    def __init__(self, profile_service, episodic_service, vector_service=None):
+    def __init__(self, profile_service, episodic_service, vector_service=None, procedural_service=None):
         self.profile_service = profile_service
         self.episodic_service = episodic_service
         self.vector_service = vector_service
+        self.procedural_service = procedural_service
 
     async def build(
         self,
@@ -54,6 +55,13 @@ class ContextAssembler:
         profile_text = self._format_profile(profile)
         if profile_text:
             parts.append(f"\n## 用户画像\n{profile_text}")
+
+        # [2.5] 行为规则
+        if self.procedural_service:
+            rules = await self.procedural_service.get_active_rules(user_id)
+            if rules:
+                rules_text = "\n".join([f"- {r['rule_text']}" for r in rules])
+                parts.append(f"\n## 交互规则\n{rules_text}")
 
         # [3] 主动交互提示（如有）
         if proactive_hint:

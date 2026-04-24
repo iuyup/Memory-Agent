@@ -64,8 +64,10 @@ async def chat_send(
 
     # Call LLM with full context assembly
     context_assembler = request.app.state.context_assembler
+    proactive_service = request.app.state.proactive_service
+    proactive_hint = await proactive_service.check(user_id, session_id)
     system_prompt, recent_turns = await context_assembler.build(
-        user_id, body.message, session_id
+        user_id, body.message, session_id, proactive_hint=proactive_hint
     )
     messages = recent_turns + [{"role": "user", "content": body.message}]
     try:

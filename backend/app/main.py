@@ -14,6 +14,8 @@ async def lifespan(app: FastAPI):
     from app.services.llm import LLMService
     from app.services.memory_writer import MemoryWriter
     from app.services.profile_service import ProfileService
+    from app.services.proactive_service import ProactiveService
+    from app.services.procedural_service import ProceduralService
     from app.services.vector_service import VectorService
 
     await init_db()
@@ -23,8 +25,10 @@ async def lifespan(app: FastAPI):
     episodic_service = EpisodicService(get_db)
     vector_service = VectorService(get_db)
     await vector_service.init_vec_table()
-    context_assembler = ContextAssembler(profile_service, episodic_service, vector_service)
-    memory_writer = MemoryWriter(llm_service, profile_service, episodic_service, vector_service)
+    procedural_service = ProceduralService(get_db)
+    context_assembler = ContextAssembler(profile_service, episodic_service, vector_service, procedural_service)
+    memory_writer = MemoryWriter(llm_service, profile_service, episodic_service, vector_service, procedural_service)
+    proactive_service = ProactiveService(get_db, profile_service, episodic_service)
 
     app.state.llm_service = llm_service
     app.state.profile_service = profile_service
@@ -32,6 +36,8 @@ async def lifespan(app: FastAPI):
     app.state.vector_service = vector_service
     app.state.context_assembler = context_assembler
     app.state.memory_writer = memory_writer
+    app.state.proactive_service = proactive_service
+    app.state.procedural_service = procedural_service
 
     yield
 
