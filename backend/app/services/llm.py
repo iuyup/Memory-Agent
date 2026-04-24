@@ -101,9 +101,43 @@ class AnthropicProvider(LLMProvider):
         return _safe_parse_json(raw)
 
 
+class MiniMaxProvider(LLMProvider):
+    def __init__(self):
+        self.client = openai.AsyncOpenAI(
+            base_url=settings.MINIMAX_API_BASE_URL,
+            api_key=settings.MINIMAX_API_KEY,
+        )
+        self.model = settings.MINIMAX_CHAT_MODEL
+
+    async def chat(
+        self, system_prompt: str, messages: list[dict], max_tokens: int = 2048
+    ) -> str:
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "system", "content": system_prompt}, *messages],
+            max_tokens=max_tokens,
+        )
+        return response.choices[0].message.content or ""
+
+    async def extract_json(
+        self, system_prompt: str, user_content: str, max_tokens: int = 1024
+    ) -> dict:
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system_prompt + "\n只输出纯 JSON，不要任何其他内容。"},
+                {"role": "user", "content": user_content},
+            ],
+            max_tokens=max_tokens,
+        )
+        raw = response.choices[0].message.content or ""
+        return _safe_parse_json(raw)
+
+
 _PROVIDER_MAP = {
     "deepseek": DeepSeekProvider,
     "anthropic": AnthropicProvider,
+    "minimax": MiniMaxProvider,
 }
 
 

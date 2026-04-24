@@ -97,7 +97,11 @@ async def resolve_confirmation(
                     """
                     UPDATE profile_facts
                     SET status = 'superseded', updated_at = ?
-                    WHERE user_id = ? AND field_name = ? AND status = 'confirmed'
+                    WHERE id = (
+                        SELECT id FROM profile_facts
+                        WHERE user_id = ? AND field_name = ? AND status = 'confirmed'
+                        ORDER BY created_at DESC LIMIT 1
+                    )
                     """,
                     (now, current_user.user_id, confirmation["field_name"]),
                 )
@@ -106,7 +110,11 @@ async def resolve_confirmation(
                 """
                 UPDATE profile_facts
                 SET status = 'confirmed', updated_at = ?
-                WHERE user_id = ? AND field_name = ? AND field_value = ? AND status = 'pending'
+                WHERE id = (
+                    SELECT id FROM profile_facts
+                    WHERE user_id = ? AND field_name = ? AND field_value = ? AND status = 'pending'
+                    ORDER BY created_at DESC LIMIT 1
+                )
                 """,
                 (now, current_user.user_id, confirmation["field_name"], confirmation["new_value"]),
             )
@@ -117,7 +125,11 @@ async def resolve_confirmation(
                 """
                 UPDATE profile_facts
                 SET status = 'superseded', updated_at = ?
-                WHERE user_id = ? AND field_name = ? AND field_value = ? AND status = 'pending'
+                WHERE id = (
+                    SELECT id FROM profile_facts
+                    WHERE user_id = ? AND field_name = ? AND field_value = ? AND status = 'pending'
+                    ORDER BY created_at DESC LIMIT 1
+                )
                 """,
                 (now, current_user.user_id, confirmation["field_name"], confirmation["new_value"]),
             )
@@ -128,7 +140,11 @@ async def resolve_confirmation(
                 """
                 UPDATE profile_facts
                 SET status = 'superseded', updated_at = ?
-                WHERE user_id = ? AND field_name = ? AND field_value = ? AND status = 'pending'
+                WHERE id = (
+                    SELECT id FROM profile_facts
+                    WHERE user_id = ? AND field_name = ? AND field_value = ? AND status = 'pending'
+                    ORDER BY created_at DESC LIMIT 1
+                )
                 """,
                 (now, current_user.user_id, confirmation["field_name"], confirmation["new_value"]),
             )

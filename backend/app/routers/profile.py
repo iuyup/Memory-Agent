@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.auth_deps import get_current_user
 from app.models.schemas import CurrentUser
-from app.services.profile_service import ProfileService
 
 router = APIRouter()
 
@@ -16,6 +15,7 @@ class ProfileSnapshotResponse(BaseModel):
 
 @router.get("/{user_id}", response_model=ProfileSnapshotResponse)
 async def get_profile(
+    request: Request,
     user_id: str,
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -26,7 +26,7 @@ async def get_profile(
             detail="Cannot view other user's profile",
         )
 
-    profile_service = ProfileService()
+    profile_service = request.app.state.profile_service
     snapshot = await profile_service.get_profile_snapshot(user_id)
     missing_fields = await profile_service.get_missing_core_fields(user_id)
 
@@ -39,6 +39,7 @@ async def get_profile(
 
 @router.get("/{user_id}/timeline")
 async def get_profile_timeline(
+    request: Request,
     user_id: str,
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -49,5 +50,5 @@ async def get_profile_timeline(
             detail="Cannot view other user's timeline",
         )
 
-    profile_service = ProfileService()
+    profile_service = request.app.state.profile_service
     return await profile_service.get_profile_timeline(user_id)

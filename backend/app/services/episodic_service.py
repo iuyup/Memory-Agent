@@ -1,5 +1,6 @@
 import json
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import AsyncIterator
 
@@ -12,6 +13,7 @@ class EpisodicService:
     def __init__(self, db=None):
         self._db_factory = db
 
+    @asynccontextmanager
     async def _db(self) -> AsyncIterator:
         if self._db_factory is not None:
             async with self._db_factory() as db:
@@ -234,7 +236,7 @@ class EpisodicService:
             # d. 检查 level-0 是否积累 >= 5 条
             l0_rows = await db.execute_fetchall(
                 """
-                SELECT id, summary_text FROM conversation_summaries
+                SELECT id, covers_turn_start, covers_turn_end, summary_text FROM conversation_summaries
                 WHERE user_id = ? AND level = 0
                 ORDER BY covers_turn_start ASC
                 """,
@@ -245,8 +247,8 @@ class EpisodicService:
                 compressed = await self._compress_summaries(
                     llm_service, summaries, level=1
                 )
-                turn_start = l0_rows[0]["id"]
-                turn_end = l0_rows[-1]["id"]
+                turn_start = l0_rows[0]["covers_turn_start"]
+                turn_end = l0_rows[-1]["covers_turn_end"]
                 now = datetime.utcnow().isoformat()
                 await db.execute(
                     """
@@ -258,25 +260,30 @@ class EpisodicService:
                 )
                 await db.commit()
 
+                # Delete consumed level-0 summaries
+                l0_ids = [r["id"] for r in l0_rows]
+                placeholders = ",".join("?" * len(l0_ids))
+                await db.execute(
+                    f"DELETE FROM conversation_summaries WHERE id IN ({placeholders})",
+                    l0_ids,
+                )
+                await db.commit()
+
     async def _compress_summaries(
         self, llm_service, summaries: list[str], level: int
     ) -> str:
         """调用 LLM 将多条摘要压缩为一段。"""
-        COMPRESS_PROMPT = """将以下多轮对话摘要压缩为一段简洁的总结，保留关键事实、用户意图和重要决策，去掉冗余细节。
-
-摘要列表：
-{summaries}
-
-输出一段 200 字以内的压缩总结："""
+        system_prompt = "你是一个摘要压缩助手。将用户提供的多轮对话摘要压缩为一段 200 字以内的简洁总结，保留关键事实、用户意图和重要决策，去掉冗余细节。只输出压缩后的总结，不要其他内容。"
         joined = "\n---\n".join(summaries)
+        user_content = f"请压缩以下摘要列表：\n\n{joined}"
         return await llm_service.generate_chat(
-            system_prompt=COMPRESS_PROMPT.format(summaries=joined),
-            messages=[],
+            system_prompt=system_prompt,
+            messages=[{"role": "user", "content": user_content}],
             max_tokens=512,
         )
 
     async def get_recent_turns_for_context(
-        self, user_id: str, limit: int = 10
+        self, user_id: str, session_id: str, limit: int = 10
     ) -> list[dict]:
         """
         获取最近 N 轮原始对话，格式化为 LLM messages 格式。
@@ -288,11 +295,11 @@ class EpisodicService:
                 """
                 SELECT user_message, assistant_message
                 FROM conversation_turns
-                WHERE user_id = ?
+                WHERE user_id = ? AND session_id = ?
                 ORDER BY created_at DESC
                 LIMIT ?
                 """,
-                (user_id, limit),
+                (user_id, session_id, limit),
             )
         result = []
         for row in reversed(rows):

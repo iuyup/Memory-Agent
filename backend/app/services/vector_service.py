@@ -1,5 +1,6 @@
 import logging
 import struct
+from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 import openai
@@ -27,6 +28,7 @@ class VectorService:
         self.embedding_dim = 1536
         self._vec_available = False
 
+    @asynccontextmanager
     async def _get_db(self):
         """Get a database connection, applying to the factory if provided."""
         if self._db_factory is not None:

@@ -2,7 +2,9 @@ import aiosqlite
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-DATABASE_PATH = Path("./data/memory.db")
+from app.config import settings
+
+DATABASE_PATH = settings.DATABASE_PATH
 
 
 async def init_db():

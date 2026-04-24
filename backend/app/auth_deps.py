@@ -18,7 +18,7 @@ def get_current_user(
             user_id=payload["user_id"],
             username=payload["username"],
         )
-    except JWTError:
+    except (JWTError, KeyError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",

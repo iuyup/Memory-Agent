@@ -10,6 +10,10 @@ class Settings(BaseSettings):
 
     ANTHROPIC_API_KEY: str = ""
 
+    MINIMAX_API_KEY: str = ""
+    MINIMAX_CHAT_MODEL: str = "abab6.5s-chat"
+    MINIMAX_API_BASE_URL: str = "https://api.minimaxi.com"
+
     OPENAI_API_KEY: str = ""
     JWT_SECRET: str = "dev-secret-change-in-production"
     DATABASE_PATH: Path = Path("./data/memory.db")

@@ -59,31 +59,12 @@ async def chat_send(
             )
             await db.commit()
 
-        # Get recent turns for context
-        history_rows = await db.execute_fetchall(
-            """
-            SELECT user_message, assistant_message
-            FROM conversation_turns
-            WHERE user_id = ? AND session_id = ?
-            ORDER BY created_at DESC
-            LIMIT ?
-            """,
-            (user_id, session_id, 10),
-        )
-
-    # Build messages list (reverse to get chronological order)
-    # Each turn has both user and assistant messages - add both
-    history_messages = []
-    for row in reversed(history_rows):
-        history_messages.append({"role": "user", "content": row["user_message"]})
-        history_messages.append({"role": "assistant", "content": row["assistant_message"]})
-
     # Call LLM with full context assembly
     context_assembler = request.app.state.context_assembler
     system_prompt, recent_turns = await context_assembler.build(
         user_id, body.message, session_id
     )
-    messages = recent_turns + history_messages + [{"role": "user", "content": body.message}]
+    messages = recent_turns + [{"role": "user", "content": body.message}]
     response_text = await get_llm_service().generate_chat(system_prompt, messages)
 
     # Store turn

@@ -81,7 +81,7 @@ class ContextAssembler:
 
         # [6] 最近 N 轮原始对话
         recent_turns = await self.episodic_service.get_recent_turns_for_context(
-            user_id, limit=10
+            user_id, session_id, limit=10
         )
 
         return system_prompt, recent_turns
