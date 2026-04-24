@@ -11,6 +11,14 @@ async def init_db():
         await db.execute("PRAGMA journal_mode=WAL")
         await db.execute("PRAGMA foreign_keys=ON")
 
+        # 加载 sqlite-vec 扩展
+        try:
+            await db.enable_load_extension(True)
+            import sqlite_vec
+            sqlite_vec.load(db)
+        except Exception:
+            pass  # sqlite-vec 不可用时不影响主功能
+
         # 1. users
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (

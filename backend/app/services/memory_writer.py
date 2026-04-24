@@ -13,10 +13,12 @@ class MemoryWriter:
         llm_service,
         profile_service: ProfileService,
         episodic_service: EpisodicService,
+        vector_service=None,
     ):
         self.llm_service = llm_service
         self.profile_service = profile_service
         self.episodic_service = episodic_service
+        self.vector_service = vector_service
 
     async def process_turn(
         self,
@@ -66,7 +68,15 @@ class MemoryWriter:
         except Exception as e:
             logger.error(f"update_turn_metadata failed: {e}")
 
-        # 2d. 检查是否需要压缩
+        # 2d. 向量索引
+        if self.vector_service is not None:
+            try:
+                text = f"{user_message} {assistant_message}"
+                await self.vector_service.index_turn(turn_id, text)
+            except Exception as e:
+                logger.error(f"vector indexing failed: {e}")
+
+        # 2e. 检查是否需要压缩
         try:
             await self.episodic_service.check_and_compress(user_id, self.llm_service)
         except Exception as e:

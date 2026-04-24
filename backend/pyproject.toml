@@ -13,6 +13,7 @@ dependencies = [
     "pydantic",
     "pydantic-settings",
     "aiosqlite",
+    "sqlite-vec",
 ]
 [project.optional-dependencies]
 test = ["pytest", "pytest-asyncio"]
