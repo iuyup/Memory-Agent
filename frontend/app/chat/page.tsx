@@ -48,6 +48,13 @@ interface MemoryStatus {
   context_preview: string;
 }
 
+function renderMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`(.+?)`/g, "<code class='bg-zinc-100 px-1 rounded text-xs'>$1</code>")
+    .replace(/\n/g, "<br>");
+}
+
 export default function ChatPage() {
   const [username, setUsername] = useState("");
   const [userId, setUserId] = useState("");
@@ -131,7 +138,6 @@ export default function ChatPage() {
         { role: "assistant", content: res.response },
       ]);
 
-      // Refresh debug panel after message
       if (debugOpen) {
         setTimeout(fetchMemoryStatus, 1000);
       }
@@ -154,30 +160,53 @@ export default function ChatPage() {
     }
   };
 
+  const handleNewConversation = () => {
+    setMessages([]);
+    setSessionId(null);
+    setMemoryStatus(null);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     router.push("/");
   };
 
+  // Group facts by field category
+  const confirmedFacts = memoryStatus?.profile.confirmed_facts ?? [];
+  const groupedFacts = confirmedFacts.reduce<
+    Record<string, typeof confirmedFacts>
+  >((acc, f) => {
+    const label = FIELD_LABELS[f.field] ?? f.field;
+    if (!acc[label]) acc[label] = [];
+    acc[label].push(f);
+    return acc;
+  }, {});
+
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-zinc-200">
-        <div className="flex items-center gap-3">
-          <span className="font-medium text-zinc-700">{username}</span>
+        <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
+          <span className="font-medium text-zinc-700 truncate">{username}</span>
+          <button
+            onClick={handleNewConversation}
+            className="px-2 py-1 text-xs border border-zinc-300 rounded hover:bg-zinc-50 shrink-0"
+          >
+            新对话
+          </button>
           <button
             onClick={() => {
               setDebugOpen((o) => !o);
               if (!debugOpen) fetchMemoryStatus();
             }}
-            className="px-2 py-1 text-xs border border-zinc-300 rounded hover:bg-zinc-50"
+            className="px-2 py-1 text-xs border border-zinc-300 rounded hover:bg-zinc-50 shrink-0 hidden sm:inline-block"
           >
             {debugOpen ? "隐藏记忆面板" : "显示记忆面板"}
           </button>
         </div>
         <button
           onClick={handleLogout}
-          className="px-3 py-1 text-sm border border-zinc-300 rounded-lg hover:bg-zinc-50"
+          className="px-3 py-1 text-sm border border-zinc-300 rounded-lg hover:bg-zinc-50 shrink-0"
         >
           登出
         </button>
@@ -186,7 +215,7 @@ export default function ChatPage() {
       {/* Main content: chat + debug panel */}
       <div className="flex flex-1 overflow-hidden">
         {/* Messages */}
-        <main className="flex-1 overflow-y-auto p-4">
+        <main className="flex-1 overflow-y-auto p-4 w-full">
           <div className="max-w-2xl mx-auto space-y-4">
             {messages.map((msg, i) => (
               <div
@@ -194,14 +223,13 @@ export default function ChatPage() {
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-xs md:max-w-md px-4 py-2 rounded-xl text-sm ${
+                  className={`max-w-[85vw] md:max-w-md px-4 py-2 rounded-xl text-sm whitespace-pre-wrap break-words ${
                     msg.role === "user"
                       ? "bg-black text-white rounded-br-none"
                       : "bg-zinc-200 text-zinc-800 rounded-bl-none"
                   }`}
-                >
-                  {msg.content}
-                </div>
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                />
               </div>
             ))}
             {loading && (
@@ -217,7 +245,7 @@ export default function ChatPage() {
 
         {/* Debug Panel */}
         {debugOpen && (
-          <aside className="w-80 border-l border-zinc-200 bg-white overflow-y-auto p-4 space-y-4">
+          <aside className="w-80 border-l border-zinc-200 bg-white overflow-y-auto p-4 space-y-4 hidden md:block">
             <h2 className="font-semibold text-sm text-zinc-600 uppercase tracking-wide">
               记忆系统状态
             </h2>
@@ -227,57 +255,50 @@ export default function ChatPage() {
             ) : (
               <>
                 {/* Stats */}
-                <section className="space-y-1 text-xs text-zinc-600">
-                  <p>
-                    <span className="font-medium">总轮次:</span> {memoryStatus.episodic.total_turns}
-                  </p>
-                  <p>
-                    <span className="font-medium">摘要数:</span> {memoryStatus.episodic.total_summaries}
-                  </p>
-                  <p>
-                    <span className="font-medium">向量索引:</span>{" "}
-                    {memoryStatus.vector?.indexed_turns < 0
-                      ? "不可用"
-                      : `${memoryStatus.vector?.indexed_turns ?? 0} 条`}
-                  </p>
-                  <p>
-                    <span className="font-medium">Sessions:</span> {memoryStatus.episodic.sessions_count}
-                  </p>
+                <section className="space-y-1 text-xs text-zinc-600 border-t border-zinc-100 pt-3">
+                  <p>📊 总轮次: <b>{memoryStatus.episodic.total_turns}</b></p>
+                  <p>📝 摘要数: <b>{memoryStatus.episodic.total_summaries}</b></p>
+                  <p>🔍 向量索引: <b>{memoryStatus.vector?.indexed_turns ?? 0} 条</b></p>
+                  <p>💬 Sessions: <b>{memoryStatus.episodic.sessions_count}</b></p>
                 </section>
 
-                {/* User Facts */}
-                <section>
-                  <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-1">
-                    已知事实 ({memoryStatus.profile.confirmed_facts.length})
+                {/* User Facts - grouped */}
+                <section className="border-t border-zinc-100 pt-3">
+                  <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-2">
+                    👤 已知事实 ({memoryStatus.profile.confirmed_facts.length})
                   </h3>
                   {memoryStatus.profile.confirmed_facts.length === 0 ? (
                     <p className="text-xs text-zinc-400">暂无</p>
                   ) : (
-                    <ul className="space-y-1">
-                      {memoryStatus.profile.confirmed_facts.map((f, i) => (
-                        <li key={i} className="text-xs bg-zinc-50 rounded px-2 py-1">
-                          <span className="font-medium text-zinc-700">{FIELD_LABELS[f.field] ?? f.field}:</span>{" "}
-                          <span className="text-zinc-600">{f.value}</span>
-                          <span
-                            className={`ml-1 px-1.5 py-0.5 rounded text-xs ${
-                              f.source === "direct"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-zinc-200 text-zinc-500"
-                            }`}
-                          >
-                            {f.source}
-                          </span>
-                        </li>
+                    <div className="space-y-2">
+                      {Object.entries(groupedFacts).map(([label, facts]) => (
+                        <div key={label} className="bg-zinc-50 rounded px-2 py-1.5">
+                          <div className="text-xs font-medium text-zinc-500 mb-1">{label}</div>
+                          {facts.map((f, i) => (
+                            <div key={i} className="text-xs flex items-center justify-between gap-2 py-0.5">
+                              <span className="text-zinc-700">{f.value}</span>
+                              <span
+                                className={`shrink-0 px-1 py-0.5 rounded text-xs ${
+                                  f.source === "direct"
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-zinc-200 text-zinc-500"
+                                }`}
+                              >
+                                {f.source === "direct" ? "直" : "推"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   )}
                 </section>
 
                 {/* Pending Facts */}
                 {memoryStatus.profile.pending_facts.length > 0 && (
-                  <section>
+                  <section className="border-t border-zinc-100 pt-3">
                     <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-1">
-                      待确认事实 ({memoryStatus.profile.pending_facts.length})
+                      ⏳ 待确认事实 ({memoryStatus.profile.pending_facts.length})
                     </h3>
                     <ul className="space-y-1">
                       {memoryStatus.profile.pending_facts.map((f, i) => (
@@ -290,37 +311,44 @@ export default function ChatPage() {
                   </section>
                 )}
 
-                {/* Preferences */}
+                {/* Preferences with progress bar */}
                 {memoryStatus.profile.preferences.length > 0 && (
-                  <section>
-                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-1">
-                      偏好 ({memoryStatus.profile.preferences.length})
+                  <section className="border-t border-zinc-100 pt-3">
+                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-2">
+                      ⚙️ 偏好 ({memoryStatus.profile.preferences.length})
                     </h3>
-                    <ul className="space-y-1">
+                    <ul className="space-y-2">
                       {memoryStatus.profile.preferences.map((p, i) => (
-                        <li key={i} className="text-xs bg-zinc-50 rounded px-2 py-1">
-                          <span className="font-medium text-zinc-700">{p.category}:</span>{" "}
-                          <span className="text-zinc-600">{p.value}</span>
-                          <span className="text-zinc-400 ml-1">w={p.weight.toFixed(2)}</span>
+                        <li key={i} className="text-xs">
+                          <div className="flex items-center justify-between gap-2 mb-0.5">
+                            <span className="text-zinc-700 truncate">{p.value}</span>
+                            <span className="text-zinc-400 shrink-0">{p.category}</span>
+                          </div>
+                          <div className="h-1 bg-zinc-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-zinc-400 rounded-full"
+                              style={{ width: `${(p.weight * 100).toFixed(0)}%` }}
+                            />
+                          </div>
                         </li>
                       ))}
                     </ul>
                   </section>
                 )}
 
-                {/* Missing Core Fields */}
+                {/* Missing Core Fields - yellow */}
                 {memoryStatus.profile.missing_core_fields.length > 0 && (
-                  <section>
-                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-1">
-                      缺失核心字段
+                  <section className="border-t border-zinc-100 pt-3">
+                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-2">
+                      ❓ 缺失字段
                     </h3>
                     <div className="flex flex-wrap gap-1">
                       {memoryStatus.profile.missing_core_fields.map((f) => (
                         <span
                           key={f}
-                          className="text-xs px-2 py-0.5 bg-red-50 text-red-600 rounded border border-red-200"
+                          className="text-xs px-2 py-0.5 bg-yellow-50 text-yellow-700 rounded border border-yellow-200"
                         >
-                          {f}
+                          {FIELD_LABELS[f] ?? f}
                         </span>
                       ))}
                     </div>
@@ -329,15 +357,15 @@ export default function ChatPage() {
 
                 {/* Procedural Rules */}
                 {memoryStatus.procedural?.rules?.length > 0 && (
-                  <section>
-                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-1">
-                      行为规则 ({memoryStatus.procedural.rules.length})
+                  <section className="border-t border-zinc-100 pt-3">
+                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-2">
+                      📋 行为规则 ({memoryStatus.procedural.rules.length})
                     </h3>
                     <ul className="space-y-1">
                       {memoryStatus.procedural.rules.map((r) => (
-                        <li key={r.id} className="text-xs bg-blue-50 rounded px-2 py-1">
+                        <li key={r.id} className="text-xs bg-blue-50 rounded px-2 py-1.5">
                           <span className="text-zinc-700">{r.rule_text}</span>
-                          <span className="ml-1 text-blue-500">c={r.confidence.toFixed(2)}</span>
+                          <span className="ml-1 text-blue-400">c={r.confidence.toFixed(2)}</span>
                         </li>
                       ))}
                     </ul>
@@ -346,22 +374,21 @@ export default function ChatPage() {
 
                 {/* Proactive Status */}
                 {memoryStatus.proactive?.last_hint && (
-                  <section>
-                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-1">
-                      主动交互状态
+                  <section className="border-t border-zinc-100 pt-3">
+                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-2">
+                      💡 主动交互
                     </h3>
                     <div className="text-xs bg-purple-50 rounded px-2 py-2 border border-purple-200">
-                      <p className="text-purple-700 font-medium">最近触发 hint:</p>
-                      <p className="text-purple-600 mt-1">{memoryStatus.proactive.last_hint}</p>
+                      <p className="text-purple-600 leading-relaxed">{memoryStatus.proactive.last_hint}</p>
                     </div>
                   </section>
                 )}
 
                 {/* Pending Confirmations */}
                 {memoryStatus.proactive?.pending_confirmations?.length > 0 && (
-                  <section>
-                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-1">
-                      待确认项 ({memoryStatus.proactive.pending_confirmations.length})
+                  <section className="border-t border-zinc-100 pt-3">
+                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-2">
+                      ⚠️ 待确认项 ({memoryStatus.proactive.pending_confirmations.length})
                     </h3>
                     <div className="space-y-2">
                       {memoryStatus.proactive.pending_confirmations.map((c) => (
@@ -369,7 +396,7 @@ export default function ChatPage() {
                           key={c.id}
                           className="text-xs bg-yellow-50 rounded px-2 py-2 border border-yellow-200 space-y-1"
                         >
-                          <p className="font-medium text-zinc-700">{c.question}</p>
+                          <p className="font-medium text-zinc-700 leading-relaxed">{c.question}</p>
                           <div className="flex gap-2 mt-1">
                             <button
                               onClick={() => handleResolve(c.id, "confirm")}
@@ -391,9 +418,9 @@ export default function ChatPage() {
                 )}
 
                 {/* Context Preview */}
-                <section>
-                  <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-1">
-                    System Prompt 预览
+                <section className="border-t border-zinc-100 pt-3">
+                  <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-2">
+                    📄 System Prompt
                   </h3>
                   <pre className="text-xs text-zinc-500 bg-zinc-50 rounded p-2 whitespace-pre-wrap break-all max-h-32 overflow-y-auto">
                     {memoryStatus.context_preview}

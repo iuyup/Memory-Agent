@@ -1,17 +1,27 @@
 # Backend
 backend/.venv/
 backend/__pycache__/
+backend/**/__pycache__/
 backend/data/
 backend/.env
+*.db
 
 # Frontend
 frontend/node_modules/
 frontend/.next/
 frontend/out/
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
 # General
 .DS_Store
 *.local
+*.log
 
 .claude/
 .vscode/

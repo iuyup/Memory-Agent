@@ -105,7 +105,7 @@ async def chat_send(
     return ChatSendResponse(session_id=session_id, turn_id=turn_id, response=response_text)
 
 
-@router.get("/history/{session_id}")
+@router.get("/history/{session_id}", response_model=list[TurnResponse])
 async def chat_history(
     session_id: str,
     current_user: CurrentUser = Depends(get_current_user),
