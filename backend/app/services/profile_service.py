@@ -22,6 +22,12 @@ class ProfileService:
         "公司": "company", "当前项目": "current_project",
         "游戏": "game", "昵称": "nickname", "称呼": "nickname",
         "游戏角色": "game_character", "游戏ID": "game_id",
+        # 追加覆盖截图变体
+        "游戏兴趣": "game",
+        "偏好角色": "game_character",
+        "游戏本命角色": "game_character",
+        "技术栈": "tech_stack",
+        "编程语言": "tech_stack",
     }
 
     def __init__(self, db=None):
@@ -61,6 +67,17 @@ class ProfileService:
             return
 
         async with self._db() as db:
+            # 防重复：在所有记录里查同 user_id + 同归一化 field_name + 同归一化 value
+            existing = await self._get_existing_fact_by_normalized(db, user_id, field_name, new_value)
+            if existing:
+                if self._normalize(new_value) == self._normalize(existing["field_value"]):
+                    # 值相同 → 增强置信度
+                    new_conf = min(existing["confidence"] + 0.1, 1.0)
+                    await self._update_fact_confidence(db, existing["id"], new_conf, datetime.utcnow().isoformat())
+                    await db.commit()
+                    return
+                # 值不同则让后续逻辑处理冲突
+
             old_fact = await self._get_latest_confirmed(db, user_id, field_name)
             now = datetime.utcnow().isoformat()
 
@@ -266,6 +283,21 @@ class ProfileService:
             (user_id, field_name),
         )
         return rows[0] if rows else None
+
+    async def _get_existing_fact_by_normalized(self, db, user_id: str, field_name: str, value: str):
+        """查询某字段、某归一化值的事实记录（不限 status）"""
+        rows = await db.execute_fetchall(
+            """
+            SELECT id, field_name, field_value, confidence, source, status
+            FROM profile_facts
+            WHERE user_id = ? AND field_name = ?
+            """,
+            (user_id, field_name),
+        )
+        for row in rows:
+            if self._normalize(value) == self._normalize(row["field_value"]):
+                return row
+        return None
 
     async def _insert_fact(
         self,
