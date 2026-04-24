@@ -12,9 +12,6 @@ from app.services.llm import get_llm_service
 
 router = APIRouter()
 
-SYSTEM_PROMPT = "你是一个个人 AI 助理，友好、有帮助。"
-HISTORY_TURNS = 10
-
 
 class ChatSendRequest(BaseModel):
     message: str
@@ -71,19 +68,23 @@ async def chat_send(
             ORDER BY created_at DESC
             LIMIT ?
             """,
-            (user_id, session_id, HISTORY_TURNS),
+            (user_id, session_id, 10),
         )
 
     # Build messages list (reverse to get chronological order)
     # Each turn has both user and assistant messages - add both
-    messages = []
+    history_messages = []
     for row in reversed(history_rows):
-        messages.append({"role": "user", "content": row["user_message"]})
-        messages.append({"role": "assistant", "content": row["assistant_message"]})
-    messages.append({"role": "user", "content": body.message})
+        history_messages.append({"role": "user", "content": row["user_message"]})
+        history_messages.append({"role": "assistant", "content": row["assistant_message"]})
 
-    # Call LLM
-    response_text = await get_llm_service().generate_chat(SYSTEM_PROMPT, messages)
+    # Call LLM with full context assembly
+    context_assembler = request.app.state.context_assembler
+    system_prompt, recent_turns = await context_assembler.build(
+        user_id, body.message, session_id
+    )
+    messages = recent_turns + history_messages + [{"role": "user", "content": body.message}]
+    response_text = await get_llm_service().generate_chat(system_prompt, messages)
 
     # Store turn
     created_at = datetime.utcnow().isoformat()

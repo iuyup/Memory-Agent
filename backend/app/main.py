@@ -9,6 +9,7 @@ from app.routers import auth, chat, profile, confirmation
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.services.context_assembler import ContextAssembler
     from app.services.episodic_service import EpisodicService
     from app.services.llm import LLMService
     from app.services.memory_writer import MemoryWriter
@@ -22,12 +23,14 @@ async def lifespan(app: FastAPI):
     episodic_service = EpisodicService(get_db)
     vector_service = VectorService(get_db)
     await vector_service.init_vec_table()
+    context_assembler = ContextAssembler(profile_service, episodic_service, vector_service)
     memory_writer = MemoryWriter(llm_service, profile_service, episodic_service, vector_service)
 
     app.state.llm_service = llm_service
     app.state.profile_service = profile_service
     app.state.episodic_service = episodic_service
     app.state.vector_service = vector_service
+    app.state.context_assembler = context_assembler
     app.state.memory_writer = memory_writer
 
     yield
