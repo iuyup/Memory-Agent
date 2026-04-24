@@ -1,9 +1,12 @@
+import logging
 import uuid
 from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 from app.auth_deps import get_current_user
 from app.database import get_db
@@ -65,7 +68,14 @@ async def chat_send(
         user_id, body.message, session_id
     )
     messages = recent_turns + [{"role": "user", "content": body.message}]
-    response_text = await get_llm_service().generate_chat(system_prompt, messages)
+    try:
+        response_text = await get_llm_service().generate_chat(system_prompt, messages)
+    except Exception as e:
+        logger.error(f"LLM call failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"LLM service error: {type(e).__name__}: {e}",
+        )
 
     # Store turn
     created_at = datetime.utcnow().isoformat()

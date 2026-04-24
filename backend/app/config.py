@@ -3,6 +3,8 @@ from pathlib import Path
 
 
 class Settings(BaseSettings):
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
     LLM_PROVIDER: str = "deepseek"
 
     DEEPSEEK_API_KEY: str = ""

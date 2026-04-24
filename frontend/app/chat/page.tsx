@@ -46,6 +46,7 @@ interface MemoryStatus {
 
 export default function ChatPage() {
   const [username, setUsername] = useState("");
+  const [userId, setUserId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -56,9 +57,10 @@ export default function ChatPage() {
   const router = useRouter();
 
   const fetchMemoryStatus = useCallback(async () => {
+    if (!userId) return;
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:8000/debug/memory-status", {
+      const res = await fetch(`http://localhost:8000/debug/memory-status/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -68,7 +70,7 @@ export default function ChatPage() {
     } catch {
       // silently fail
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -77,8 +79,11 @@ export default function ChatPage() {
       return;
     }
     api
-      .get<{ username: string }>("/auth/me")
-      .then((res) => setUsername(res.username))
+      .get<{ user_id: string; username: string }>("/auth/me")
+      .then((res) => {
+        setUsername(res.username);
+        setUserId(res.user_id);
+      })
       .catch(() => {
         localStorage.removeItem("token");
         router.push("/");

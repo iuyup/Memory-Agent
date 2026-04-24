@@ -159,12 +159,16 @@ async def get_memory_status(
         vector_service = getattr(request.app.state, "vector_service", None)
         vec_available = getattr(vector_service, "_vec_available", False) if vector_service else False
         if vec_available:
-            vec_rows = await db.execute_fetchall(
-                "SELECT COUNT(*) as cnt FROM turn_embeddings",
-            )
-            indexed_turns = vec_rows[0]["cnt"] if vec_rows else 0
+            try:
+                vec_rows = await db.execute_fetchall(
+                    "SELECT COUNT(*) as cnt FROM turn_embeddings",
+                )
+                indexed_turns = vec_rows[0]["cnt"] if vec_rows else 0
+            except Exception:
+                indexed_turns = 0
+                vec_available = False
         else:
-            indexed_turns = -1  # 表示不可用
+            indexed_turns = 0
 
         # ── Context preview ─────────────────────────────────────────────────────
         context_assembler = getattr(request.app.state, "context_assembler", None)
