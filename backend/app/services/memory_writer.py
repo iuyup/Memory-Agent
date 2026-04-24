@@ -48,6 +48,16 @@ class MemoryWriter:
         summary = extraction.get("summary", "")
         has_open_question = extraction.get("has_open_question", False)
 
+        # 去重：同一归一化字段只保留 confidence 最高的那条
+        seen: dict = {}
+        for fact in facts:
+            field = fact.get("field", "")
+            normalized = ProfileService.FIELD_ALIASES.get(field, field)
+            conf = fact.get("confidence", 0)
+            if normalized not in seen or conf > seen[normalized].get("confidence", 0):
+                seen[normalized] = {**fact, "field": normalized}
+        facts = list(seen.values())
+
         # 2a. Merge facts
         for fact in facts:
             try:

@@ -310,8 +310,17 @@ class ProfileService:
     async def _create_confirmation(
         self, db, user_id, field_name, old_value, new_value, question
     ):
-        """创建待确认记录"""
+        """创建待确认记录，同一字段已有 pending 则自动 dismiss"""
         now = datetime.utcnow().isoformat()
+        # 先把同一用户同一字段的旧 pending 标记为 dismissed
+        await db.execute(
+            """
+            UPDATE pending_confirmations
+            SET status = 'dismissed', resolved_at = ?
+            WHERE user_id = ? AND field_name = ? AND status = 'pending'
+            """,
+            (now, user_id, field_name),
+        )
         await db.execute(
             """
             INSERT INTO pending_confirmations

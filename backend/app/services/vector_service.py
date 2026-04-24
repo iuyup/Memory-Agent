@@ -26,7 +26,7 @@ class VectorService:
     def __init__(self, db_factory=None):
         self._db_factory = db_factory
         self.embedding_dim = 1536
-        self._vec_available = False
+        self.available = False  # 优雅降级标志
 
     @asynccontextmanager
     async def _get_db(self):
@@ -64,11 +64,11 @@ class VectorService:
                     """
                 )
                 await db.commit()
-            self._vec_available = True
+            self.available = True
             logger.info("Vector table initialized successfully")
         except Exception as e:
             logger.warning(f"sqlite-vec init failed, vector search disabled: {e}")
-            self._vec_available = False
+            self.available = False
 
     async def index_turn(self, turn_id: int, text: str) -> None:
         """
@@ -78,7 +78,7 @@ class VectorService:
         1. 调用 OpenAI embedding API: text-embedding-3-small
         2. 将 embedding 插入 turn_embeddings 表
         """
-        if not self._vec_available:
+        if not self.available:
             return
 
         try:
@@ -104,7 +104,7 @@ class VectorService:
         返回 [{"turn_id": int, "user_message": str, "assistant_message": str,
               "summary": str, "distance": float, "created_at": str}]
         """
-        if not self._vec_available:
+        if not self.available:
             return []
 
         try:

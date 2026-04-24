@@ -11,16 +11,20 @@ def _safe_parse_json(raw: str) -> dict:
     """Parse JSON with resilience against common LLM output issues."""
     raw = raw.strip()
     # strip code fence
-    raw = re.sub(r'^```(?:json)?\s*', '', raw)
-    raw = re.sub(r'\s*```$', '', raw)
+    raw = re.sub(r"^```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```$", "", raw)
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
         # 尝试找到第一个 { 到最后一个 } 的子串
-        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
         if match:
-            return json.loads(match.group())
-        raise
+            try:
+                return json.loads(match.group())
+            except json.JSONDecodeError:
+                pass
+        logger.warning(f"_safe_parse_json: all parsing attempts failed, raw={raw[:100]!r}")
+        return {"facts": [], "preferences": [], "tags": [], "summary": "", "has_open_question": False}
 
 
 class LLMProvider(ABC):
