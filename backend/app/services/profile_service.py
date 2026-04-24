@@ -12,6 +12,17 @@ logger = logging.getLogger(__name__)
 
 class ProfileService:
     CORE_FIELDS = ["name", "occupation", "city", "interests", "age", "education"]
+    FIELD_ALIASES = {
+        "姓名": "name", "名字": "name", "名称": "name",
+        "职业": "occupation", "工作": "occupation", "职位": "occupation", "身份": "occupation",
+        "城市": "city", "居住地": "city", "所在城市": "city", "地点": "city",
+        "兴趣": "interests", "爱好": "interests", "兴趣爱好": "interests",
+        "年龄": "age", "岁数": "age",
+        "教育": "education", "学历": "education", "学校": "education", "教育背景": "education",
+        "公司": "company", "当前项目": "current_project",
+        "游戏": "game", "昵称": "nickname", "称呼": "nickname",
+        "游戏角色": "game_character", "游戏ID": "game_id",
+    }
 
     def __init__(self, db=None):
         """
@@ -40,6 +51,8 @@ class ProfileService:
         fact 结构: {"field": str, "value": str, "confidence": float, "source": "direct"|"inferred"}
         """
         field_name = fact.get("field", "")
+        normalized_field = self.FIELD_ALIASES.get(field_name, field_name)
+        field_name = normalized_field  # 后续全部使用归一化后的英文字段名
         new_value = fact.get("value", "")
         confidence = fact.get("confidence", 0.5)
         source = fact.get("source", "inferred")

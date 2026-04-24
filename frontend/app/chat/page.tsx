@@ -60,6 +60,11 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
+  const FIELD_LABELS: Record<string, string> = {
+    name: "姓名", occupation: "职业", city: "城市",
+    interests: "兴趣", age: "年龄", education: "教育",
+  };
+
   const fetchMemoryStatus = useCallback(async () => {
     if (!userId) return;
     try {
@@ -251,7 +256,7 @@ export default function ChatPage() {
                     <ul className="space-y-1">
                       {memoryStatus.profile.confirmed_facts.map((f, i) => (
                         <li key={i} className="text-xs bg-zinc-50 rounded px-2 py-1">
-                          <span className="font-medium text-zinc-700">{f.field}:</span>{" "}
+                          <span className="font-medium text-zinc-700">{FIELD_LABELS[f.field] ?? f.field}:</span>{" "}
                           <span className="text-zinc-600">{f.value}</span>
                           <span
                             className={`ml-1 px-1.5 py-0.5 rounded text-xs ${
@@ -277,7 +282,7 @@ export default function ChatPage() {
                     <ul className="space-y-1">
                       {memoryStatus.profile.pending_facts.map((f, i) => (
                         <li key={i} className="text-xs bg-yellow-50 rounded px-2 py-1 border border-yellow-200">
-                          <span className="font-medium text-zinc-700">{f.field}:</span>{" "}
+                          <span className="font-medium text-zinc-700">{FIELD_LABELS[f.field] ?? f.field}:</span>{" "}
                           <span className="text-zinc-600">{f.value}</span>
                         </li>
                       ))}
