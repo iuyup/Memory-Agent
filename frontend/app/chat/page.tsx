@@ -37,6 +37,10 @@ interface MemoryStatus {
   proactive: {
     pending_confirmations: PendingConfirmation[];
     recent_triggers: Array<{ hook_type: string; topic: string; triggered_at: string }>;
+    last_hint: string | null;
+  };
+  procedural: {
+    rules: Array<{ id: number; rule_text: string; confidence: number; created_at: string }>;
   };
   vector: {
     indexed_turns: number;
@@ -138,7 +142,7 @@ export default function ChatPage() {
 
   const handleResolve = async (id: number, action: "confirm" | "reject") => {
     try {
-      await api.post(`/confirmations/${id}/resolve`, { action });
+      await api.post(`/confirmation/${id}/resolve`, { action });
       await fetchMemoryStatus();
     } catch (e) {
       alert(`操作失败: ${e instanceof Error ? e.message : "请求失败"}`);
@@ -227,9 +231,9 @@ export default function ChatPage() {
                   </p>
                   <p>
                     <span className="font-medium">向量索引:</span>{" "}
-                    {memoryStatus.vector.indexed_turns < 0
+                    {memoryStatus.vector?.indexed_turns < 0
                       ? "不可用"
-                      : `${memoryStatus.vector.indexed_turns} 条`}
+                      : `${memoryStatus.vector?.indexed_turns ?? 0} 条`}
                   </p>
                   <p>
                     <span className="font-medium">Sessions:</span> {memoryStatus.episodic.sessions_count}
@@ -249,7 +253,15 @@ export default function ChatPage() {
                         <li key={i} className="text-xs bg-zinc-50 rounded px-2 py-1">
                           <span className="font-medium text-zinc-700">{f.field}:</span>{" "}
                           <span className="text-zinc-600">{f.value}</span>
-                          <span className="text-zinc-400 ml-1">({f.source})</span>
+                          <span
+                            className={`ml-1 px-1.5 py-0.5 rounded text-xs ${
+                              f.source === "direct"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-zinc-200 text-zinc-500"
+                            }`}
+                          >
+                            {f.source}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -310,8 +322,38 @@ export default function ChatPage() {
                   </section>
                 )}
 
+                {/* Procedural Rules */}
+                {memoryStatus.procedural?.rules?.length > 0 && (
+                  <section>
+                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-1">
+                      行为规则 ({memoryStatus.procedural.rules.length})
+                    </h3>
+                    <ul className="space-y-1">
+                      {memoryStatus.procedural.rules.map((r) => (
+                        <li key={r.id} className="text-xs bg-blue-50 rounded px-2 py-1">
+                          <span className="text-zinc-700">{r.rule_text}</span>
+                          <span className="ml-1 text-blue-500">c={r.confidence.toFixed(2)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                {/* Proactive Status */}
+                {memoryStatus.proactive?.last_hint && (
+                  <section>
+                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-1">
+                      主动交互状态
+                    </h3>
+                    <div className="text-xs bg-purple-50 rounded px-2 py-2 border border-purple-200">
+                      <p className="text-purple-700 font-medium">最近触发 hint:</p>
+                      <p className="text-purple-600 mt-1">{memoryStatus.proactive.last_hint}</p>
+                    </div>
+                  </section>
+                )}
+
                 {/* Pending Confirmations */}
-                {memoryStatus.proactive.pending_confirmations.length > 0 && (
+                {memoryStatus.proactive?.pending_confirmations?.length > 0 && (
                   <section>
                     <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-1">
                       待确认项 ({memoryStatus.proactive.pending_confirmations.length})
