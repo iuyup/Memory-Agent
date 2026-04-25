@@ -159,4 +159,12 @@ async def chat_sessions(current_user: CurrentUser = Depends(get_current_user)):
             """,
             (current_user.user_id,),
         )
-    return [dict(row) for row in rows]
+    return [
+        {
+            "session_id": row["session_id"],
+            "started_at": row["started_at"],
+            "first_message": row["first_message"] or "",
+            "turn_count": row["turn_count"],
+        }
+        for row in rows
+    ]
