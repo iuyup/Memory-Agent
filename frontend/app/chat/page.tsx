@@ -187,10 +187,10 @@ export default function ChatPage() {
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-zinc-200">
         <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
-          <span className="font-medium text-zinc-700 truncate">{username}</span>
+          <span className="font-medium text-gray-800 truncate">{username}</span>
           <button
             onClick={handleNewConversation}
-            className="px-2 py-1 text-xs border border-zinc-300 rounded hover:bg-zinc-50 shrink-0"
+            className="px-2 py-1 text-xs border border-zinc-300 rounded hover:bg-zinc-50 shrink-0 text-gray-800"
           >
             新对话
           </button>
@@ -199,14 +199,14 @@ export default function ChatPage() {
               setDebugOpen((o) => !o);
               if (!debugOpen) fetchMemoryStatus();
             }}
-            className="px-2 py-1 text-xs border border-zinc-300 rounded hover:bg-zinc-50 shrink-0 hidden sm:inline-block"
+            className="px-2 py-1 text-xs border border-zinc-300 rounded hover:bg-zinc-50 shrink-0 hidden sm:inline-block text-gray-800"
           >
             {debugOpen ? "隐藏记忆面板" : "显示记忆面板"}
           </button>
         </div>
         <button
           onClick={handleLogout}
-          className="px-3 py-1 text-sm border border-zinc-300 rounded-lg hover:bg-zinc-50 shrink-0"
+          className="px-3 py-1 text-sm border border-zinc-300 rounded-lg hover:bg-zinc-50 shrink-0 text-gray-700"
         >
           登出
         </button>
@@ -447,7 +447,7 @@ export default function ChatPage() {
           <button
             onClick={handleSend}
             disabled={loading || !input.trim()}
-            className="px-4 py-2 bg-black text-white rounded-lg hover:bg-zinc-800 disabled:opacity-50"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
             发送
           </button>

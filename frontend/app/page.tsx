@@ -32,11 +32,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50">
       <div className="w-full max-w-sm p-6 bg-white border border-zinc-200 rounded-xl shadow-sm">
-        <h1 className="text-xl font-semibold text-center mb-6">登录 / 注册</h1>
+        <h1 className="text-xl font-semibold text-center mb-6 text-gray-900">登录 / 注册</h1>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">
+            <label className="block text-sm font-medium text-gray-800 mb-1">
               用户名
             </label>
             <input
@@ -48,7 +48,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">
+            <label className="block text-sm font-medium text-gray-800 mb-1">
               密码
             </label>
             <input
@@ -74,7 +74,7 @@ export default function LoginPage() {
             <button
               onClick={() => handleLogin(true)}
               disabled={loading}
-              className="flex-1 py-2 border border-zinc-300 rounded-lg hover:bg-zinc-50 disabled:opacity-50"
+              className="flex-1 py-2 border border-zinc-400 rounded-lg hover:bg-zinc-100 disabled:opacity-50 text-gray-700"
             >
               注册
             </button>
