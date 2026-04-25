@@ -193,6 +193,18 @@ class ProfileService:
                 """,
                 (user_id,),
             )
+            # value 级别去重：归一化后的 field_name + 归一化后的 value 组合已见过则跳过
+            seen_values: set = set()
+            value_filtered = []
+            for row in rows:
+                norm_field = row["field_name"].strip().lower()
+                norm_value = self._normalize(row["field_value"])
+                key = (norm_field, norm_value)
+                if key not in seen_values:
+                    seen_values.add(key)
+                    value_filtered.append(row)
+            rows = value_filtered
+
             # 同名字段只保留最新一条（防止 race condition 产生多条 confirmed）
             seen: set = set()
             filtered = []

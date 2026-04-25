@@ -168,3 +168,32 @@ async def chat_sessions(current_user: CurrentUser = Depends(get_current_user)):
         }
         for row in rows
     ]
+
+
+@router.delete("/sessions/{session_id}")
+async def chat_delete_session(
+    session_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    async with get_db() as db:
+        # 验证 session 属于当前用户
+        row = await db.execute_fetchall(
+            "SELECT session_id FROM sessions WHERE session_id = ? AND user_id = ?",
+            (session_id, current_user.user_id),
+        )
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+        # 删除该 session 下所有 conversation_turns 记录
+        await db.execute(
+            "DELETE FROM conversation_turns WHERE session_id = ?",
+            (session_id,),
+        )
+        # 删除 sessions 表中该 session 记录
+        await db.execute(
+            "DELETE FROM sessions WHERE session_id = ?",
+            (session_id,),
+        )
+        await db.commit()
+
+    return {"success": True}

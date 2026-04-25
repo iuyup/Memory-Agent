@@ -98,6 +98,7 @@ export default function ChatPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memoryError, setMemoryError] = useState(false);
+  const [activeMenuSession, setActiveMenuSession] = useState<string | null>(null);
 
   const FIELD_LABELS: Record<string, string> = {
     name: "姓名", occupation: "职业", city: "城市",
@@ -171,6 +172,17 @@ export default function ChatPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rightPanelCollapsed, userId]);
 
+  // Close session menu when clicking outside
+  useEffect(() => {
+    const handler = () => {
+      if (activeMenuSession !== null) {
+        setActiveMenuSession(null);
+      }
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [activeMenuSession]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -241,6 +253,20 @@ export default function ChatPage() {
     setLeftSidebarOpen(false);
   };
 
+  const handleDeleteSession = async (sid: string) => {
+    setActiveMenuSession(null);
+    if (!window.confirm("确定删除这个对话吗？")) return;
+    try {
+      await api.delete(`/chat/sessions/${sid}`);
+      setSessions(sessions.filter((s) => s.session_id !== sid));
+      if (activeSessionId === sid) {
+        handleNewConversation();
+      }
+    } catch {
+      alert("删除失败");
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     router.push("/");
@@ -248,7 +274,15 @@ export default function ChatPage() {
 
   // Group facts by field category
   const confirmedFacts = memoryStatus?.profile.confirmed_facts ?? [];
-  const groupedFacts = confirmedFacts.reduce<
+
+  // 防御性去重：按 field + value 组合去重
+  const uniqueFacts = confirmedFacts.filter(
+    (fact, index, self) =>
+      index ===
+      self.findIndex((f) => f.field === fact.field && f.value === fact.value)
+  );
+
+  const groupedFacts = uniqueFacts.reduce<
     Record<string, typeof confirmedFacts>
   >((acc, f) => {
     const label = FIELD_LABELS[f.field] ?? f.field;
@@ -304,20 +338,55 @@ export default function ChatPage() {
                 ) : (
                   <div className="py-1">
                     {sessions.map((s) => (
-                      <button
+                      <div
                         key={s.session_id}
-                        onClick={() => handleSelectSession(s.session_id)}
-                        className={`w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-100 ${
-                          activeSessionId === s.session_id ? "bg-gray-200" : ""
-                        }`}
+                        className="group relative flex items-center px-3 py-2 border-b border-gray-100 hover:bg-gray-100"
                       >
-                        <div className="text-sm text-gray-800 truncate">
-                          {s.first_message?.slice(0, 30) || "新对话"}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-0.5">
-                          {formatRelativeTime(s.started_at)} · {s.turn_count} 条
-                        </div>
-                      </button>
+                        {/* 选中态背景 */}
+                        <div
+                          className={`absolute inset-0 pointer-events-none ${
+                            activeSessionId === s.session_id ? "bg-gray-200" : ""
+                          }`}
+                        />
+
+                        {/* 会话主体（可点击） */}
+                        <button
+                          onClick={() => handleSelectSession(s.session_id)}
+                          className="flex-1 text-left"
+                        >
+                          <div className="text-sm text-gray-800 truncate">
+                            {s.first_message?.slice(0, 30) || "新对话"}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            {formatRelativeTime(s.started_at)} · {s.turn_count} 条
+                          </div>
+                        </button>
+
+                        {/* 三点菜单按钮 — 默认隐藏，hover 时显示 */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuSession(
+                              activeMenuSession === s.session_id ? null : s.session_id
+                            );
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-300 text-gray-500 transition-opacity"
+                        >
+                          ⁝
+                        </button>
+
+                        {/* 浮层菜单 */}
+                        {activeMenuSession === s.session_id && (
+                          <div className="absolute right-2 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[100px]">
+                            <button
+                              onClick={() => handleDeleteSession(s.session_id)}
+                              className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+                            >
+                              🗑 删除
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}
@@ -493,9 +562,9 @@ export default function ChatPage() {
                 {/* User Facts - grouped */}
                 <section className="border-t border-zinc-100 pt-3">
                   <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-2">
-                    👤 已知事实 ({memoryStatus.profile.confirmed_facts.length})
+                    👤 已知事实 ({uniqueFacts.length})
                   </h3>
-                  {memoryStatus.profile.confirmed_facts.length === 0 ? (
+                  {uniqueFacts.length === 0 ? (
                     <p className="text-xs text-zinc-400">暂无</p>
                   ) : (
                     <div className="space-y-2">
