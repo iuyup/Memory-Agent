@@ -34,6 +34,13 @@ class TurnResponse(BaseModel):
     created_at: str
 
 
+class SessionInfo(BaseModel):
+    session_id: str
+    first_message: str
+    started_at: str
+    turn_count: int
+
+
 @router.post("/send", response_model=ChatSendResponse)
 async def chat_send(
     request: Request,
@@ -133,3 +140,23 @@ async def chat_history(
         }
         for row in rows
     ]
+
+
+@router.get("/sessions", response_model=list[SessionInfo])
+async def chat_sessions(current_user: CurrentUser = Depends(get_current_user)):
+    async with get_db() as db:
+        rows = await db.execute_fetchall(
+            """
+            SELECT s.session_id, s.started_at,
+                   (SELECT user_message FROM conversation_turns
+                    WHERE session_id = s.session_id
+                    ORDER BY created_at ASC LIMIT 1) as first_message,
+                   (SELECT COUNT(*) FROM conversation_turns
+                    WHERE session_id = s.session_id) as turn_count
+            FROM sessions s
+            WHERE s.user_id = ?
+            ORDER BY s.started_at DESC
+            """,
+            (current_user.user_id,),
+        )
+    return [dict(row) for row in rows]

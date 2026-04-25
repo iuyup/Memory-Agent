@@ -9,6 +9,20 @@ interface Message {
   content: string;
 }
 
+interface TurnResponse {
+  turn_id: number;
+  user_message: string;
+  assistant_message: string;
+  created_at: string;
+}
+
+interface SessionInfo {
+  session_id: string;
+  first_message: string;
+  started_at: string;
+  turn_count: number;
+}
+
 interface PendingConfirmation {
   id: number;
   field_name: string;
@@ -55,6 +69,17 @@ function renderMarkdown(text: string): string {
     .replace(/\n/g, "<br>");
 }
 
+function formatRelativeTime(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  if (target.getTime() === today.getTime()) return "今天";
+  if (target.getTime() === yesterday.getTime()) return "昨天";
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
 export default function ChatPage() {
   const [username, setUsername] = useState("");
   const [userId, setUserId] = useState("");
@@ -66,6 +91,11 @@ export default function ChatPage() {
   const [memoryStatus, setMemoryStatus] = useState<MemoryStatus | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const FIELD_LABELS: Record<string, string> = {
     name: "姓名", occupation: "职业", city: "城市",
@@ -106,6 +136,24 @@ export default function ChatPage() {
       });
   }, [router]);
 
+  // Load sessions on mount
+  useEffect(() => {
+    if (!userId) return;
+    api.get<SessionInfo[]>("/chat/sessions").then(setSessions).catch(() => {});
+  }, [userId]);
+
+  // Load history when selecting a session
+  useEffect(() => {
+    if (!activeSessionId) return;
+    api.get<TurnResponse[]>(`/chat/history/${activeSessionId}`).then((history) => {
+      setMessages(history.flatMap(h => [
+        { role: "user" as const, content: h.user_message },
+        { role: "assistant" as const, content: h.assistant_message }
+      ]));
+      setSessionId(activeSessionId);
+    }).catch(() => {});
+  }, [activeSessionId]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -131,6 +179,9 @@ export default function ChatPage() {
 
       if (!sessionId && res.session_id) {
         setSessionId(res.session_id);
+        setActiveSessionId(res.session_id);
+        // Refresh sessions list to include new session
+        api.get<SessionInfo[]>("/chat/sessions").then(setSessions).catch(() => {});
       }
 
       setMessages((prev) => [
@@ -163,7 +214,14 @@ export default function ChatPage() {
   const handleNewConversation = () => {
     setMessages([]);
     setSessionId(null);
+    setActiveSessionId(null);
     setMemoryStatus(null);
+    setLeftSidebarOpen(false);
+  };
+
+  const handleSelectSession = (sid: string) => {
+    setActiveSessionId(sid);
+    setLeftSidebarOpen(false);
   };
 
   const handleLogout = () => {
@@ -183,40 +241,113 @@ export default function ChatPage() {
   }, {});
 
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-50">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-zinc-200">
-        <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
-          <span className="font-medium text-gray-800 truncate">{username}</span>
+    <div className="h-screen flex overflow-hidden bg-zinc-50">
+      {/* Left Sidebar */}
+      <aside className={`${leftSidebarOpen ? "block" : "hidden"} md:block w-64 border-r border-gray-200 bg-gray-50 flex-col fixed md:static inset-y-0 left-0 z-30 transition-transform duration-300`}>
+        <div className="flex flex-col h-full">
+          {/* New conversation button */}
+          <div className="p-3 border-b border-gray-200">
+            <button
+              onClick={handleNewConversation}
+              className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 flex items-center justify-center gap-2 text-gray-800"
+            >
+              <span className="text-lg">+</span> 新对话
+            </button>
+          </div>
+
+          {/* Session list */}
+          <div className="flex-1 overflow-y-auto">
+            {sessions.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-8">暂无对话记录</p>
+            ) : (
+              <div className="py-1">
+                {sessions.map((s) => (
+                  <button
+                    key={s.session_id}
+                    onClick={() => handleSelectSession(s.session_id)}
+                    className={`w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-100 ${
+                      activeSessionId === s.session_id ? "bg-gray-200" : ""
+                    }`}
+                  >
+                    <div className="text-sm text-gray-800 truncate">
+                      {s.first_message?.slice(0, 30) || "新对话"}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      {formatRelativeTime(s.started_at)} · {s.turn_count} 条
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* User info + logout */}
+          <div className="p-3 border-t border-gray-200 flex items-center justify-between">
+            <span className="text-sm text-gray-700 truncate">{username}</span>
+            <button
+              onClick={handleLogout}
+              className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-200"
+            >
+              登出
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Overlay for mobile sidebar */}
+      {leftSidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/30 z-20"
+          onClick={() => setLeftSidebarOpen(false)}
+        />
+      )}
+
+      {/* Middle Chat Area */}
+      <main className="flex-1 flex flex-col min-w-0">
+        {/* Mobile header */}
+        <header className="md:hidden flex items-center gap-2 px-4 py-3 bg-white border-b border-zinc-200">
           <button
-            onClick={handleNewConversation}
-            className="px-2 py-1 text-xs border border-zinc-300 rounded hover:bg-zinc-50 shrink-0 text-gray-800"
+            onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
+            className="p-2 rounded hover:bg-zinc-100 text-gray-700"
           >
-            新对话
+            ☰
           </button>
+          <span className="font-medium text-gray-800 truncate flex-1">
+            {activeSessionId
+              ? sessions.find(s => s.session_id === activeSessionId)?.first_message?.slice(0, 20) || "新对话"
+              : "新对话"}
+          </span>
           <button
-            onClick={() => {
-              setDebugOpen((o) => !o);
-              if (!debugOpen) fetchMemoryStatus();
-            }}
-            className="px-2 py-1 text-xs border border-zinc-300 rounded hover:bg-zinc-50 shrink-0 hidden sm:inline-block text-gray-800"
+            onClick={() => setRightPanelOpen(!rightPanelOpen)}
+            className="p-2 rounded hover:bg-zinc-100 text-gray-700"
           >
-            {debugOpen ? "隐藏记忆面板" : "显示记忆面板"}
+            {rightPanelOpen ? "✕" : "☰"}
+          </button>
+        </header>
+
+        {/* Desktop toggle + title bar */}
+        <div className="hidden md:flex items-center justify-between px-4 py-2 bg-white border-b border-zinc-200">
+          <span className="text-sm text-gray-500">
+            {activeSessionId
+              ? sessions.find(s => s.session_id === activeSessionId)?.first_message?.slice(0, 40) || "新对话"
+              : "新对话"}
+          </span>
+          <button
+            onClick={() => setRightPanelOpen(!rightPanelOpen)}
+            className="px-2 py-1 text-xs border border-zinc-300 rounded hover:bg-zinc-50 text-gray-800"
+          >
+            {rightPanelOpen ? "隐藏记忆面板" : "显示记忆面板"}
           </button>
         </div>
-        <button
-          onClick={handleLogout}
-          className="px-3 py-1 text-sm border border-zinc-300 rounded-lg hover:bg-zinc-50 shrink-0 text-gray-700"
-        >
-          登出
-        </button>
-      </header>
 
-      {/* Main content: chat + debug panel */}
-      <div className="flex flex-1 overflow-hidden">
         {/* Messages */}
-        <main className="flex-1 overflow-y-auto p-4 w-full">
+        <div className="flex-1 overflow-y-auto p-4">
           <div className="max-w-2xl mx-auto space-y-4">
+            {messages.length === 0 && (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-2xl text-gray-300">有什么可以帮你的？</p>
+              </div>
+            )}
             {messages.map((msg, i) => (
               <div
                 key={i}
@@ -241,11 +372,39 @@ export default function ChatPage() {
             )}
             <div ref={messagesEndRef} />
           </div>
-        </main>
+        </div>
 
-        {/* Debug Panel */}
-        {debugOpen && (
-          <aside className="w-80 border-l border-zinc-200 bg-white overflow-y-auto p-4 space-y-4 hidden md:block">
+        {/* Input */}
+        <footer className="p-4 bg-white border-t border-zinc-200">
+          <div className="max-w-2xl mx-auto flex gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              disabled={loading}
+              placeholder="输入消息..."
+              className="flex-1 px-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-400 disabled:opacity-50"
+            />
+            <button
+              onClick={handleSend}
+              disabled={loading || !input.trim()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              发送
+            </button>
+          </div>
+        </footer>
+      </main>
+
+      {/* Right Memory Panel */}
+      <aside
+        className={`${
+          rightPanelOpen ? "w-80" : "w-12"
+        } hidden md:block border-l border-gray-200 bg-white transition-all duration-300 overflow-y-auto`}
+      >
+        {rightPanelOpen ? (
+          <div className="p-4 space-y-4">
             <h2 className="font-semibold text-sm text-zinc-600 uppercase tracking-wide">
               记忆系统状态
             </h2>
@@ -336,7 +495,7 @@ export default function ChatPage() {
                   </section>
                 )}
 
-                {/* Missing Core Fields - yellow */}
+                {/* Missing Core Fields */}
                 {memoryStatus.profile.missing_core_fields.length > 0 && (
                   <section className="border-t border-zinc-100 pt-3">
                     <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-2">
@@ -428,31 +587,19 @@ export default function ChatPage() {
                 </section>
               </>
             )}
-          </aside>
+          </div>
+        ) : (
+          <div className="w-12 h-full flex items-start justify-center pt-4">
+            <button
+              onClick={() => setRightPanelOpen(true)}
+              className="p-2 rounded hover:bg-zinc-100 text-gray-500"
+              title="显示记忆面板"
+            >
+              ☰
+            </button>
+          </div>
         )}
-      </div>
-
-      {/* Input */}
-      <footer className="p-4 bg-white border-t border-zinc-200">
-        <div className="max-w-2xl mx-auto flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            disabled={loading}
-            placeholder="输入消息..."
-            className="flex-1 px-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-400 disabled:opacity-50"
-          />
-          <button
-            onClick={handleSend}
-            disabled={loading || !input.trim()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            发送
-          </button>
-        </div>
-      </footer>
+      </aside>
     </div>
   );
 }
