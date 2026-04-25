@@ -5,6 +5,7 @@
 ## 项目亮点
 
 - **三层记忆体系**（Semantic / Episodic / Procedural），借鉴认知科学分类，分别对应用户画像、历史事件和行为规则
+- **三层去重防线**：Extraction prompt 约束 + LLM 语义去重 + FIELD_ALIASES/seen 规则去重，防止重复 facts 污染画像
 - **完整的 Fact Merge 算法**：置信度动态更新 + 旧值时间有效性（temporal validity）+ 冲突检测 + 待确认队列，参考 Zep/Graphiti 的 temporal merge 思路
 - **偏好权重指数衰减**（λ=0.05，约 14 天半衰期），使偏好随时间自然淡化，避免过时信息主导回复
 - **四类主动交互 Hook + 冷静期机制**，实现渐进式披露（Progressive Disclosure）：先问关键问题，再补齐画像，最后追未闭环话题
@@ -93,6 +94,7 @@ User Message + Assistant Reply
 ┌──────────────────────────────────────────┐
 │         MemoryWriter.process_turn         │
 │                                          │
+│  [Phase 1.5] LLM Deduplication           │──▶ 三层去重防线
 │  [2a] merge_fact (ProfileService)         │──▶ Fact Merge 四种 Case
 │  [2b] update_preference                   │
 │  [2c] update_turn_metadata                │
@@ -101,6 +103,11 @@ User Message + Assistant Reply
 │  [2f] extract_rules (每5轮)               │
 └──────────────────────────────────────────┘
 ```
+
+**三层去重防线：**
+- **第一层**：Extraction prompt 约束字段名（标准化为 snake_case）
+- **第二层**：LLM 语义去重（`MemoryWriter._deduplicate_facts`）—— 对比新 facts 与已有 confirmed facts，标记 ADD/UPDATE/SKIP，过滤完全重复的信息
+- **第三层**：`FIELD_ALIASES` 映射 + `seen` set 去重（同一归一化 field 只保留 confidence 最高的）
 
 **Fact Merge 四种 Case：**
 
@@ -226,6 +233,16 @@ npm run dev
 
 ---
 
+### ADR-006: 为什么去重要在 LLM 层做而不是只在数据库层
+
+**背景**：profile_facts 表中经常出现同一个 field_name 的多条 confirmed 记录（如"城市: 肇庆"出现多次），原因是 extraction prompt 字段名不统一 + LLM 每次都可能重新提取同样的事实。
+
+**决策**：三层去重——Extraction prompt 约束（第一层）+ LLM 语义去重（第二层）+ 数据库层 seen set 去重（第三层）。
+
+**理由**：纯数据库层去重（如 `DISTINCT` 或 `GROUP BY`）无法处理语义重复但字面不同的输入（如"居住地: 肇庆"和"city: 肇庆"）；LLM 层去重利用语义理解能力，识别语义等价但表述不同的事实，过滤掉 SKIP 的重复信息；数据库层做最后的兜底保护。三层组合在精度和召回之间取得平衡，且 LLM 去重只调用一次、用便宜模型，成本可控。
+
+---
+
 ### ADR-002: 为什么 Extraction 和 Chat 用同一个 LLM Provider
 
 **背景**：系统有两个 LLM 调用——对话生成和记忆提取（fact/preference/tags）。
@@ -271,7 +288,7 @@ npm run dev
 ### 当前局限
 
 1. **无用户认证层**：仅用 Bearer Token 做了简单校验，生产环境需要 JWT + RBAC + 审计日志
-2. **Extraction 质量依赖 LLM**：LLM 可能提取出不准确/重复的事实，目前仅靠 confidence 阈值过滤，精度有限
+2. **Extraction 质量依赖 LLM**：LLM 可能提取出不准确的事实，已有三层去重防线（LLM 语义去重 + FIELD_ALIASES 映射 + seen 去重），仍有误提可能
 3. **SQLite 并发写入**：BackgroundTasks 中的多个 process_turn 并发写同一用户，虽然 WAL 模式可以处理，但高并发下可能出现锁竞争
 4. **无向量更新机制**：turn_embedding 只写入不更新，删掉的对话轮次不会清理对应 embedding
 5. **Procedural Rule 无删除机制**：规则只有 active=1/0 的软删除，没有置信度自动降级
@@ -282,4 +299,4 @@ npm run dev
 2. **向量实时更新**：对话轮次删除时同步清理 embedding；embedding 随 profile 变化增量更新而非全量重算
 3. **多会话支持**：当前 session_id 仅用于分隔上下文边界，后续可支持 session 级别的记忆隔离
 4. **事实来源追踪**：fact 的 `source_turn_id` 字段可以扩展为完整溯源链，debug 时展示"这条信息来自哪轮对话"
-5. **Extraction 质量评估**：引入 cross-check 机制——提取后用另一个 prompt 验证事实准确性，降低错误确认率
+5. **Extraction 质量评估**：已实现 LLM 语义去重（Phase 1.5），可进一步引入 cross-check 机制——提取后用另一个 prompt 验证事实准确性，降低错误确认率
