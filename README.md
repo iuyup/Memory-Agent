@@ -12,7 +12,7 @@
 
 ## 架构设计
 
-### 设计哲学
+### 设计理念
 
 从零构建而非直接采用 Mem0/Letta/Zep 等成熟框架，原因有三：第一，已知框架的存储模型往往过于固定（如纯向量化或纯 KG），无法灵活支撑 Fact Merge 的多种 case 逻辑；第二，主流框架的主动交互能力普遍薄弱，本项目将主动交互提升为一级系统特性而非插件；第三，通过从零实现可以完整展示记忆系统设计的思考过程。具体设计上参考了 Zep 的 temporal validity 机制（旧值标记为 superseded 而非删除）和 Graphiti 的 fact 冲突检测 + 待确认队列思路。
 
@@ -38,30 +38,30 @@
      │          │  ┌─────────────────┐                                       │
      │          │  │  MemoryWriter   │◀── BackgroundTasks (async, fire-forget)
      │          │  └──────┬──────────┘                                       │
-     │          │           │          ┌──────────────────────────────────┐  │
-     │          │           └──────────│  LLM Extraction (facts/prefs/    │  │
-     │          │                      │  tags/summary/open_question)     │  │
-     │          │                      └───────────────┬──────────────┘   │
-     │          │                                      │                   │
-     │          │           ┌──────────────────────────┴──────────┐        │
-     │          │           ▼                                   ▼        │
-     │          │  ┌───────────────┐                    ┌─────────────┐   │
-     │          │  │ProfileService │                    │EpisodicSvc   │   │
-     │          │  │· merge_fact   │                    │· update_turn │   │
-     │          │  │· pref update  │                    │· compress    │   │
-     │          │  └───────┬───────┘                    └──────┬──────┘   │
-     │          │          │                                   │           │
-     │          │          ▼                                   ▼           │
-     │          │  ┌──────────────────────────────────────────────────┐   │
-     │          │  │                      SQLite                      │   │
-     │          │  │  profile_facts │ conversation_turns              │   │
-     │          │  │  profile_prefs │ conversation_summaries          │   │
-     │          │  │  pending_conf  │ proactive_log                   │   │
-     │          │  │  procedural_rs │ turn_embeddings (vec)           │   │
-     │          │  └──────────────────────────────────────────────────┘   │
-     └──────────┘                                                         │
-                                                                         │
-                     ┌───────────────────────────────────────────────────┘
+     │          │           │          ┌──────────────────────────────┐      │
+     │          │           └──────────│  LLM Extraction (facts/prefs/│      │
+     │          │                      │  tags/summary/open_question) │      │
+     │          │                      └───────────────┬──────────────┘      │
+     │          │                                      │                     │
+     │          │           ┌──────────────────────────┴──────────┐          │
+     │          │           ▼                                   ▼            │
+     │          │  ┌───────────────┐                    ┌─────────────┐      │
+     │          │  │ProfileService │                    │EpisodicSvc  │      │
+     │          │  │· merge_fact   │                    │· update_turn│      │ 
+     │          │  │· pref update  │                    │· compress   │      │
+     │          │  └───────┬───────┘                    └──────┬──────┘      │
+     │          │          │                                   │             │
+     │          │          ▼                                   ▼             │
+     │          │  ┌──────────────────────────────────────────────────┐      │ 
+     │          │  │                      SQLite                      │      │
+     │          │  │  profile_facts │ conversation_turns              │      │
+     │          │  │  profile_prefs │ conversation_summaries          │      │
+     │          │  │  pending_conf  │ proactive_log                   │      │
+     │          │  │  procedural_rs │ turn_embeddings (vec)           │      │
+     │          │  └──────────────────────────────────────────────────┘      │
+     └──────────┘                                                            │
+                                                                             │
+                     ┌───────────────────────────────────────────────────────┘
                      ▼
               ┌──────────────┐
               │  LLM API     │
@@ -85,22 +85,22 @@ User Message + Assistant Reply
          │
          ▼
 ┌─────────────────────┐
-│   LLM Extraction   │  (Background, fire-and-forget)
-│  facts/prefs/tags/ │
-│  summary/open_q    │
-└────────┬──────────┘
+│   LLM Extraction    │  (Background, fire-and-forget)
+│  facts/prefs/tags/  │
+│  summary/open_q     │
+└────────┬────────────┘
          │
          ▼
 ┌──────────────────────────────────────────┐
-│         MemoryWriter.process_turn         │
+│         MemoryWriter.process_turn        │
 │                                          │
 │  [Phase 1.5] LLM Deduplication           │──▶ 三层去重防线
-│  [2a] merge_fact (ProfileService)         │──▶ Fact Merge 四种 Case
-│  [2b] update_preference                   │
-│  [2c] update_turn_metadata                │
-│  [2d] index_turn (VectorService)          │
-│  [2e] check_and_compress (EpisodicSvc)    │
-│  [2f] extract_rules (每5轮)               │
+│  [2a] merge_fact (ProfileService)        │──▶ Fact Merge 四种 Case
+│  [2b] update_preference                  │
+│  [2c] update_turn_metadata               │
+│  [2d] index_turn (VectorService)         │
+│  [2e] check_and_compress (EpisodicSvc)   │
+│  [2f] extract_rules (每5轮)              │
 └──────────────────────────────────────────┘
 ```
 
@@ -231,15 +231,6 @@ npm run dev
 
 **理由**：项目是 demo 性质，SQLite 无需运维且天然适合个人数据场景；sqlite-vec 直接集成在 SQLite 中，向量检索走虚拟表语法，无需额外部署 Qdrant/Milvus 等。WAL 模式解决了并发读写问题。如生产升级，可将 SQLite 替换为 LibSQL（Turso）或 Postgres + pgvector。
 
----
-
-### ADR-006: 为什么去重要在 LLM 层做而不是只在数据库层
-
-**背景**：profile_facts 表中经常出现同一个 field_name 的多条 confirmed 记录（如"城市: 肇庆"出现多次），原因是 extraction prompt 字段名不统一 + LLM 每次都可能重新提取同样的事实。
-
-**决策**：三层去重——Extraction prompt 约束（第一层）+ LLM 语义去重（第二层）+ 数据库层 seen set 去重（第三层）。
-
-**理由**：纯数据库层去重（如 `DISTINCT` 或 `GROUP BY`）无法处理语义重复但字面不同的输入（如"居住地: 肇庆"和"city: 肇庆"）；LLM 层去重利用语义理解能力，识别语义等价但表述不同的事实，过滤掉 SKIP 的重复信息；数据库层做最后的兜底保护。三层组合在精度和召回之间取得平衡，且 LLM 去重只调用一次、用便宜模型，成本可控。
 
 ---
 
@@ -280,6 +271,16 @@ npm run dev
 **决策**：旧值标记为 `superseded`，不物理删除，保留完整时间线。
 
 **理由**：参考 Zep/Graphiti 的 temporal validity 设计，用户行为变化本身是重要信号；保留历史可以追踪偏好变迁路径（如职业变化 → 可能兴趣也随之迁移）；确认/拒绝操作有明确的状态机（confirmed ↔ pending ↔ superseded），系统可审计。如果物理删除，确认错误后就失去了原始数据。
+
+---
+
+### ADR-006: 为什么去重要在 LLM 层做而不是只在数据库层
+
+**背景**：profile_facts 表中经常出现同一个 field_name 的多条 confirmed 记录（如"城市: 肇庆"出现多次），原因是 extraction prompt 字段名不统一 + LLM 每次都可能重新提取同样的事实。
+
+**决策**：三层去重——Extraction prompt 约束（第一层）+ LLM 语义去重（第二层）+ 数据库层 seen set 去重（第三层）。
+
+**理由**：纯数据库层去重（如 `DISTINCT` 或 `GROUP BY`）无法处理语义重复但字面不同的输入（如"居住地: 肇庆"和"city: 肇庆"）；LLM 层去重利用语义理解能力，识别语义等价但表述不同的事实，过滤掉 SKIP 的重复信息；数据库层做最后的兜底保护。三层组合在精度和召回之间取得平衡，且 LLM 去重只调用一次、用便宜模型，成本可控。
 
 ---
 
